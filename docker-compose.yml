@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  krono-db:
+    image: postgres:16-alpine
+    container_name: krono-db
+    environment:
+      POSTGRES_DB: krono_db
+      POSTGRES_USER: krono_user
+      POSTGRES_PASSWORD: krono_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - krono-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U krono_user -d krono_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  krono-backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: krono-backend
+    environment:
+      - ConnectionStrings__DefaultConnection=Host=krono-db;Port=5432;Database=krono_db;Username=krono_user;Password=krono_password
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:5000
+    ports:
+      - "5000:5000"
+    depends_on:
+      krono-db:
+        condition: service_healthy
+    networks:
+      - krono-network
+
+  krono-frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: krono-frontend
+    ports:
+      - "4200:80"
+    depends_on:
+      - krono-backend
+    networks:
+      - krono-network
+
+networks:
+  krono-network:
+    driver: bridge
+
+volumes:
+  pgdata:
